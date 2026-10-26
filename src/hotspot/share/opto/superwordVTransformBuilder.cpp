@@ -258,11 +258,18 @@ VTransformNode* SuperWordVTransformBuilder::get_or_make_vtnode_vector_input_at_i
     BasicType def_bt = _vloop_analyzer.types().velt_basic_type(in_p0);
     BasicType use_bt = _vloop_analyzer.types().velt_basic_type(p0);
 
-    // If the use and def types are different, emit a cast node
-    if (use_bt != def_bt && !p0->is_Convert() && VectorCastNode::is_supported_subword_cast(def_bt, use_bt, pack->size())) {
+    // If the use and def types are different, emit a cast node.
+    // Besides supported subword casts, an implicit unsigned widening
+    // (JDK-8375502, e.g. LoadUB feeding int) selects the unsigned opcode.
+    bool unsigned_cast = VectorCastNode::is_supported_unsigned_cast(in_p0->Opcode(), def_bt, use_bt, pack->size());
+    if (use_bt != def_bt && !p0->is_Convert() &&
+        (VectorCastNode::is_supported_subword_cast(def_bt, use_bt, pack->size()) || unsigned_cast)) {
       VTransformNode* in = get_vtnode(pack_in->at(0));
       const VTransformVectorNodeProperties properties = VTransformVectorNodeProperties::make_from_pack(pack, _vloop_analyzer);
-      VTransformNode* cast = new (_vtransform.arena()) VTransformElementWiseVectorNode(_vtransform, 2, properties, VectorCastNode::opcode(-1, def_bt));
+      // Unsigned loads widen from byte lanes: select by memory type.
+      int vopc = unsigned_cast ? VectorCastNode::opcode(-1, T_BYTE, /* is_signed */ false)
+                               : VectorCastNode::opcode(-1, def_bt);
+      VTransformNode* cast = new (_vtransform.arena()) VTransformElementWiseVectorNode(_vtransform, 2, properties, vopc);
       cast->set_req(1, in);
 
       return cast;

@@ -2004,7 +2004,7 @@ int VectorCastNode::opcode(int sopc, BasicType bt, bool is_signed) {
   }
 }
 
-bool VectorCastNode::implemented(int opc, uint vlen, BasicType src_type, BasicType dst_type) {
+bool VectorCastNode::implemented(int opc, uint vlen, BasicType src_type, BasicType dst_type, bool is_signed) {
   if (is_java_primitive(dst_type) &&
       is_java_primitive(src_type) &&
       (vlen > 1) && is_power_of_2(vlen) &&
@@ -2012,7 +2012,7 @@ bool VectorCastNode::implemented(int opc, uint vlen, BasicType src_type, BasicTy
       // check the src_type:
       VectorNode::vector_size_supported_auto_vectorization(src_type, vlen) &&
       VectorNode::vector_size_supported_auto_vectorization(dst_type, vlen)) {
-    int vopc = VectorCastNode::opcode(opc, src_type);
+    int vopc = VectorCastNode::opcode(opc, src_type, is_signed);
     return vopc > 0 && Matcher::match_rule_supported_auto_vectorization(vopc, vlen, dst_type);
   }
   return false;
@@ -2023,6 +2023,20 @@ bool VectorCastNode::is_supported_subword_cast(BasicType def_bt, BasicType use_b
 
   // Opcode is only required to disambiguate half float, so we pass -1 as it can't be encountered here.
   return (is_subword_type(def_bt) || is_subword_type(use_bt)) && VectorCastNode::implemented(-1, pack_size, def_bt, use_bt);
+}
+
+bool VectorCastNode::is_supported_unsigned_cast(int def_opc, BasicType def_bt, BasicType use_bt, const uint pack_size) {
+  // Narrow scope (JDK-8375502): unsigned byte loads widened to int
+  // (Byte.toUnsignedInt shape). The LoadUB def already carries the
+  // zero-extended value range, so no explicit Convert exists to key on.
+  // Note the velt type is boolean (not byte) for such loads — gate on the
+  // node opcode and the 1-byte element size instead. Other unsigned
+  // widenings (short sources, long destinations) are follow-ups once
+  // this shape is proven.
+  if (def_opc != Op_LoadUB || use_bt != T_INT || type2aelembytes(def_bt) != 1) {
+    return false;
+  }
+  return VectorCastNode::implemented(-1, pack_size, T_BYTE, T_INT, /* is_signed */ false);
 }
 
 Node* VectorCastNode::Identity(PhaseGVN* phase) {

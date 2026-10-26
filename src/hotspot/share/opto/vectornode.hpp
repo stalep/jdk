@@ -2021,8 +2021,11 @@ class VectorCastNode : public VectorNode {
 
   static VectorNode* make(int vopc, Node* n1, BasicType bt, uint vlen);
   static int  opcode(int opc, BasicType bt, bool is_signed = true);
-  static bool implemented(int opc, uint vlen, BasicType src_type, BasicType dst_type);
+  static bool implemented(int opc, uint vlen, BasicType src_type, BasicType dst_type, bool is_signed = true);
   static bool is_supported_subword_cast(BasicType def_bt, BasicType use_bt, const uint pack_size);
+  // Unsigned widening (JDK-8375502): the def is an unsigned load whose value
+  // range already matches the use type, connected without an explicit cast.
+  static bool is_supported_unsigned_cast(int def_opc, BasicType def_bt, BasicType use_bt, const uint pack_size);
 
   virtual Node* Identity(PhaseGVN* phase);
 };
