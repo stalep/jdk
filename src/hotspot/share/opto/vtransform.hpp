@@ -799,6 +799,15 @@ public:
     return VTransformVectorNodeProperties(phi, phi->Opcode(), vlen, bt);
   }
 
+  // Synthetic reinterpret for implicit unsigned widening (JDK-8375502):
+  // re-labels boolean lanes as byte lanes without touching bits. There is
+  // no scalar counterpart in the loop; the opcode satisfies the reinterpret
+  // wrapper's structural assert only and is never executed upon (apply uses
+  // element type and length alone). Do not use elsewhere.
+  static VTransformVectorNodeProperties make_for_unsigned_widening_input(Node* origin, uint vlen) {
+    return VTransformVectorNodeProperties(origin, Op_MoveI2F, vlen, T_BYTE);
+  }
+
   Node* approximate_origin()     const { return _approximate_origin; }
   int scalar_opcode()            const { return _scalar_opcode; }
   uint vector_length()           const { return _vector_length; }
